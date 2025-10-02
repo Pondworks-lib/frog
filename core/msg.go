@@ -26,6 +26,7 @@ const (
 	KeyEnd
 	KeyPgUp
 	KeyPgDn
+	KeyQ
 )
 
 // KeyMsg represents keyboard input in a normalized way.

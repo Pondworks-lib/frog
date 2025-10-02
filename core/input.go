@@ -14,7 +14,6 @@ type input struct{ oldState *term.State }
 
 func newInput() *input { return &input{} }
 
-// raw enables terminal raw mode; caller must defer i.restore().
 func (i *input) raw() error {
 	fd := int(os.Stdin.Fd())
 	state, err := term.MakeRaw(fd)
@@ -22,7 +21,7 @@ func (i *input) raw() error {
 		return err
 	}
 	i.oldState = state
-	enableVirtualTerminal() // no-op on non-Windows; enables ANSI on Windows
+	enableVirtualTerminal()
 	return nil
 }
 
@@ -32,9 +31,7 @@ func (i *input) restore() {
 	}
 }
 
-// readKeys parses bytes from stdin and sends KeyMsg until ctx is done.
-// It recognizes common ASCII keys, arrows, Home/End, PgUp/PgDn, Delete,
-// Enter, Backspace, Tab, Space, ESC, Ctrl-C, and Alt+<key>.
+
 func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
 	r := bufio.NewReader(os.Stdin)
 	for {
@@ -68,22 +65,22 @@ func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
 				ch <- KeyMsg{Type: KeySpace, Rune: ' ', String: " "}
 				continue
 
+			case 'q', 'Q':
+				ch <- KeyMsg{Type: KeyQ, Rune: rune(b), String: string(b)}
+				continue
+
 			case 27: // ESC / CSI / Alt+key
 				km := i.readEscape(r)
 				ch <- km
 				continue
 			}
 
-			// UTF-8 rune or control
 			if b < 0x20 || b == 0x7f {
-				// other control chars: ignore for now
 				continue
 			}
 
-			// handle UTF-8 multibyte
 			buf := []byte{b}
 			if !utf8.FullRune(buf) {
-				// try to complete a rune
 				for r.Buffered() > 0 && !utf8.FullRune(buf) {
 					nb, _ := r.ReadByte()
 					buf = append(buf, nb)
@@ -96,24 +93,18 @@ func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
 	}
 }
 
-// readEscape reads after an initial ESC (0x1b) and tries to recognize
-// CSI sequences and Alt-modified keys. It never blocks indefinitely:
-// it checks reader buffered content to decide.
+
 func (i *input) readEscape(r *bufio.Reader) KeyMsg {
-	// If nothing buffered, treat as bare ESC.
 	if r.Buffered() == 0 {
 		return KeyMsg{Type: KeyEsc, String: "\x1b"}
 	}
 
-	// Peek next byte to distinguish CSI or Alt+<key>.
 	nb, _ := r.ReadByte()
 	switch nb {
-	case '[': // CSI sequences
+	case '[':
 		return i.readCSI(r)
 	default:
-		// Likely Alt+key (Meta). Try to decode a rune from nb + possibly more bytes.
 		buf := []byte{nb}
-		// complete UTF-8 if needed
 		for r.Buffered() > 0 && !utf8.FullRune(buf) {
 			b, _ := r.ReadByte()
 			buf = append(buf, b)
@@ -121,7 +112,6 @@ func (i *input) readEscape(r *bufio.Reader) KeyMsg {
 		if ru, _ := utf8.DecodeRune(buf); ru != utf8.RuneError && !unicode.IsControl(ru) {
 			return KeyMsg{Type: KeyRune, Rune: ru, String: string(ru), Alt: true}
 		}
-		// Fallback: treat as ESC if not a printable rune.
 		return KeyMsg{Type: KeyEsc, String: "\x1b"}
 	}
 }
@@ -135,11 +125,9 @@ func (i *input) readCSI(r *bufio.Reader) KeyMsg {
 	params := []byte{}
 	for {
 		if r.Buffered() == 0 {
-			// Incomplete sequence: fallback to ESC.
 			return KeyMsg{Type: KeyEsc, String: "\x1b"}
 		}
 		b, _ := r.ReadByte()
-		// Final bytes:
 		switch b {
 		case 'A':
 			return KeyMsg{Type: KeyUp, String: "\x1b[A"}
@@ -154,7 +142,6 @@ func (i *input) readCSI(r *bufio.Reader) KeyMsg {
 		case 'F':
 			return KeyMsg{Type: KeyEnd, String: "\x1b[F"}
 		case '~':
-			// Tilde forms like "3~" (delete), "5~" (PgUp), "6~" (PgDn), "2~" (Ins)
 			switch string(params) {
 			case "3":
 				return KeyMsg{Type: KeyDelete, String: "\x1b[3~"}
@@ -163,19 +150,15 @@ func (i *input) readCSI(r *bufio.Reader) KeyMsg {
 			case "6":
 				return KeyMsg{Type: KeyPgDn, String: "\x1b[6~"}
 			case "2":
-				// Insert – not mapped for now, return Esc fallback:
 				return KeyMsg{Type: KeyEsc, String: "\x1b[2~"}
 			default:
-				// Unrecognized param; fallback:
 				return KeyMsg{Type: KeyEsc, String: "\x1b[" + string(params) + "~"}
 			}
 		default:
-			// Accumulate digits and separators (e.g., "1;5")
 			if (b >= '0' && b <= '9') || b == ';' {
 				params = append(params, b)
 				continue
 			}
-			// Unknown final – fallback:
 			return KeyMsg{Type: KeyEsc, String: "\x1b[" + string(params) + string(b)}
 		}
 	}

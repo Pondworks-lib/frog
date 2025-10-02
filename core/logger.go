@@ -7,7 +7,6 @@ import (
 	"os"
 )
 
-// Logger is a minimal structured logger interface.
 type Logger interface {
 	Debugf(format string, args ...any)
 	Infof(format string, args ...any)
