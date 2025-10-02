@@ -3,6 +3,7 @@ package core
 import (
 	"bufio"
 	"context"
+	"io"
 	"os"
 	"unicode"
 	"unicode/utf8"
@@ -10,12 +11,26 @@ import (
 	"golang.org/x/term"
 )
 
-type input struct{ oldState *term.State }
+type input struct {
+	oldState *term.State
+	inFile   *os.File // raw mode only if non-nil
+	reader   io.Reader
+}
 
-func newInput() *input { return &input{} }
+func newInput(r io.Reader) *input {
+	var f *os.File
+	if rf, ok := r.(*os.File); ok {
+		f = rf
+	}
+	return &input{inFile: f, reader: r}
+}
 
 func (i *input) raw() error {
-	fd := int(os.Stdin.Fd())
+	if i.inFile == nil {
+		// cannot enter raw mode (non tty reader), act as non-interactive
+		return nil
+	}
+	fd := int(i.inFile.Fd())
 	state, err := term.MakeRaw(fd)
 	if err != nil {
 		return err
@@ -26,14 +41,13 @@ func (i *input) raw() error {
 }
 
 func (i *input) restore() {
-	if i.oldState != nil {
-		_ = term.Restore(int(os.Stdin.Fd()), i.oldState)
+	if i.oldState != nil && i.inFile != nil {
+		_ = term.Restore(int(i.inFile.Fd()), i.oldState)
 	}
 }
 
-
 func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
-	r := bufio.NewReader(os.Stdin)
+	r := bufio.NewReader(i.reader)
 	for {
 		select {
 		case <-ctx.Done():
@@ -45,31 +59,25 @@ func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
 			}
 
 			switch b {
-			case 3: // ^C
+			case 3:
 				ch <- KeyMsg{Type: KeyCtrlC, String: "\x03", Ctrl: true}
 				continue
-
 			case '\r', '\n':
 				ch <- KeyMsg{Type: KeyEnter, String: "\r"}
 				continue
-
-			case 8, 127: // Backspace (ASCII/DEL)
+			case 8, 127:
 				ch <- KeyMsg{Type: KeyBackspace, String: string(b)}
 				continue
-
-			case 9: // Tab
+			case 9:
 				ch <- KeyMsg{Type: KeyTab, String: "\t"}
 				continue
-
 			case ' ':
 				ch <- KeyMsg{Type: KeySpace, Rune: ' ', String: " "}
 				continue
-
 			case 'q', 'Q':
 				ch <- KeyMsg{Type: KeyQ, Rune: rune(b), String: string(b)}
 				continue
-
-			case 27: // ESC / CSI / Alt+key
+			case 27:
 				km := i.readEscape(r)
 				ch <- km
 				continue
@@ -93,7 +101,6 @@ func (i *input) readKeys(ctx context.Context, ch chan<- Msg) {
 	}
 }
 
-
 func (i *input) readEscape(r *bufio.Reader) KeyMsg {
 	if r.Buffered() == 0 {
 		return KeyMsg{Type: KeyEsc, String: "\x1b"}
@@ -116,12 +123,7 @@ func (i *input) readEscape(r *bufio.Reader) KeyMsg {
 	}
 }
 
-// readCSI parses a limited set of Control Sequence Introducer codes.
-// We support arrow keys, Home/End, PgUp/PgDn, Delete, with or without
-// extra modifier parameters (ignored for now).
 func (i *input) readCSI(r *bufio.Reader) KeyMsg {
-	// The CSI format is ESC [ <params> <final>
-	// We'll read until we hit a final byte in '@A-Za-z~'.
 	params := []byte{}
 	for {
 		if r.Buffered() == 0 {

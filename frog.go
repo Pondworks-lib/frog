@@ -3,6 +3,7 @@
 package frog
 
 import (
+	"context"
 	"io"
 
 	"github.com/pondworks-lib/frog/core"
@@ -33,6 +34,9 @@ type (
 	// Layout
 	AlignH = core.AlignH
 	AlignV = core.AlignV
+
+	// Logger
+	Logger = core.Logger
 )
 
 // Key constants
@@ -54,6 +58,7 @@ const (
 	KeyEnd       = core.KeyEnd
 	KeyPgUp      = core.KeyPgUp
 	KeyPgDn      = core.KeyPgDn
+	KeyQ         = core.KeyQ
 )
 
 // Color profile constants
@@ -98,14 +103,27 @@ var (
 func NewApp(m Model, opts ...Option) *App { return core.NewSession(m, opts...) }
 func Run(m Model, opts ...Option) error   { return core.NewSession(m, opts...).Run() }
 
+// Context-aware entrypoints
+func NewAppWithContext(ctx context.Context, m Model, opts ...Option) *App {
+	return core.NewSessionWithContext(ctx, m, opts...)
+}
+func RunContext(ctx context.Context, m Model, opts ...Option) error {
+	return core.NewSessionWithContext(ctx, m, opts...).Run()
+}
+
 // Session options
 var (
-	Tick           = core.Tick
-	Quit           = core.Quit
-	Nil            = core.Nil
-	WithRenderer   = core.WithRenderer
-	WithAltScreen  = core.WithAltScreen
-	WithMsgBuffer  = core.WithMsgBuffer
+	Tick              = core.Tick
+	Quit              = core.Quit
+	Nil               = core.Nil
+	WithRenderer      = core.WithRenderer
+	WithAltScreen     = core.WithAltScreen
+	WithMsgBuffer     = core.WithMsgBuffer
+	WithOut           = core.WithOut
+	WithIn            = core.WithIn
+	WithResizeInterval= core.WithResizeInterval
+	WithNonInteractive= core.WithNonInteractive
+	WithLogger        = core.WithLogger
 )
 
 // Renderer power-user API
