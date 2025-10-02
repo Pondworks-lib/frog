@@ -4,6 +4,7 @@ package core
 
 import "golang.org/x/sys/windows"
 
+// enableVirtualTerminal enables ANSI/VT sequences on Windows 10+ consoles.
 func enableVirtualTerminal() {
 	h, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE)
 	if err != nil || h == windows.InvalidHandle {

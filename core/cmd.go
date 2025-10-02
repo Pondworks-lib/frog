@@ -2,19 +2,13 @@ package core
 
 import "time"
 
+// Cmd is an async action that returns a Msg once completed.
 type Cmd func() Msg
 
+// Nil returns no command.
 func Nil() Cmd { return nil }
 
-func Batch(cmds ...Cmd) Cmd {
-	if len(cmds) == 0 {
-		return Nil()
-	}
-	return func() Msg {
-		return cmds[0]()
-	}
-}
-
+// Tick returns a command that emits a TickMsg after d.
 func Tick(d time.Duration) Cmd {
 	if d <= 0 {
 		d = time.Millisecond
@@ -25,6 +19,5 @@ func Tick(d time.Duration) Cmd {
 	}
 }
 
-func Quit() Cmd {
-	return func() Msg { return QuitMsg{} }
-}
+// Quit requests a graceful termination.
+func Quit() Cmd { return func() Msg { return QuitMsg{} } }
