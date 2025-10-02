@@ -49,39 +49,36 @@ func (m helloModel) View() string {
 func main() {
     frog.Run(helloModel{})
 }
-
 ```
 ---
 
 ## Features
 - MUV architecture (Model, Update, View)
-
 - Message types: KeyMsg, TickMsg, QuitMsg, ResizeMsg
-
 - Command system: Cmd, Tick, Quit, Nil
-
 - Minimal ANSI renderer (with diffing)
-
 - Input handling with terminal raw mode
-
 - Cross-platform support for enabling ANSI (Windows / Unix)
+- Color and style system (16/256/TrueColor)
+- Layout helpers (Center, PlaceBlock, Align*)
 
 ---
 
 ## Status
-- Frog is in ```pre-release``` stage.
+- Frog is in `pre-release` stage.
 - APIs may change until we reach v1.0.0.
 
---
+---
 
 ## Roadmap & Vision
 
 - lily : widgets (lists, tables, forms, progress bar)
-
-- pad : layout / panels / flex / grid
-
-- splash : theming, styles, colors
-
 - ripple : event bus / pub-sub for UI
-
 - More examples & community contributions **soon**!
+
+---
+
+## Notes
+
+The projects `pad` (layout) and `splash` (theming/colors) were merged into Frog in v0.0.3.  
+All layout and styling features are now directly part of this repository.
