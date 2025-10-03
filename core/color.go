@@ -87,7 +87,6 @@ func (s Style) Reversed() Style       { s.Reverse = true; return s }
 func (s Style) Struck() Style         { s.Strike = true; return s }
 
 // Render wraps text in ANSI SGR codes. It always emits ANSI; the renderer
-// può decidere di rimuovere le sequenze (ColorNone) se l’output non supporta i colori.
 func (s Style) Render(text string) string {
 	codes := make([]string, 0, 6)
 
@@ -199,7 +198,6 @@ var (
 	ColorBrightWhite = Ansi16(NamedWhite, true)
 )
 
-// ---- ANSI stripping utility (used by the renderer when ColorNone) ----
 
 var reANSISGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 

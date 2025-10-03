@@ -36,7 +36,11 @@ type Session struct {
 	altScreen      bool
 	msgBuf         int
 	resizeInterval time.Duration
-	nonInteractive bool // can be set via option; auto-detected if false
+	nonInteractive bool
+
+	// features
+	enableMouse         bool
+	enableBracketedPaste bool
 
 	logger Logger
 }
@@ -77,6 +81,12 @@ func WithNonInteractive() Option { return func(p *Session) { p.nonInteractive = 
 // WithLogger sets a custom logger (defaults to std logger on stderr).
 func WithLogger(l Logger) Option { return func(p *Session) { p.logger = l } }
 
+// WithMouse enables SGR mouse reporting.
+func WithMouse() Option { return func(p *Session) { p.enableMouse = true } }
+
+// WithBracketedPaste enables bracketed paste (ESC[200~ .. ESC[201~]).
+func WithBracketedPaste() Option { return func(p *Session) { p.enableBracketedPaste = true } }
+
 // NewSession creates a session for a given Model.
 func NewSession(m Model, opts ...Option) *Session {
 	return NewSessionWithContext(context.Background(), m, opts...)
@@ -109,7 +119,7 @@ func NewSessionWithContext(ctx context.Context, m Model, opts ...Option) *Sessio
 	}
 	p.input = newInput(p.in)
 
-	// message channel
+	// channel
 	p.msgCh = make(chan Msg, p.msgBuf)
 	return p
 }
@@ -118,7 +128,6 @@ func NewSessionWithContext(ctx context.Context, m Model, opts ...Option) *Sessio
 func (p *Session) Run() (runErr error) {
 	p.startOnce.Do(func() {
 		defer func() {
-			// Panic recovery: always restore terminal state and return error.
 			if r := recover(); r != nil {
 				p.logger.Errorf("panic: %v", r)
 				p.stopOnce.Do(func() {
@@ -142,9 +151,9 @@ func (p *Session) Run() (runErr error) {
 		effectiveNonInteractive := p.nonInteractive || autoNonInteractive
 
 		if effectiveNonInteractive {
-			// Non-interactive: no raw mode, no loops; render once, strip ANSI.
+			// no raw, no loops; render once, strip ANSI
 			cmd := p.m.Init()
-			_ = cmd // ignore background cmds in non-interactive mode
+			_ = cmd
 			view := p.m.View()
 			fmt.Fprintln(p.out, StripANSI(view))
 			return
@@ -157,10 +166,21 @@ func (p *Session) Run() (runErr error) {
 		}
 		defer p.input.restore()
 
-		// Alt screen on/off
+		// Alt screen
 		if p.altScreen {
 			fmt.Fprint(p.out, "\x1b[?1049h")
 			defer fmt.Fprint(p.out, "\x1b[?1049l")
+		}
+
+		// Feature toggles
+		if p.enableMouse {
+			// 1000: report clicks, 1002: button-motion, 1006: SGR mode
+			fmt.Fprint(p.out, "\x1b[?1000h\x1b[?1002h\x1b[?1006h")
+			defer fmt.Fprint(p.out, "\x1b[?1000l\x1b[?1002l\x1b[?1006l")
+		}
+		if p.enableBracketedPaste {
+			fmt.Fprint(p.out, "\x1b[?2004h")
+			defer fmt.Fprint(p.out, "\x1b[?2004l")
 		}
 
 		// Input reader
@@ -190,31 +210,51 @@ func (p *Session) Run() (runErr error) {
 			go func(c Cmd) { p.msgCh <- c() }(cmd)
 		}
 
+		// Main loop
 	loop:
 		for {
 			select {
 			case <-p.ctx.Done():
 				break loop
-			case <-sigCh:
-				p.cancel()
+
+			case s := <-sigCh:
+				p.logger.Infof("signal: %v", s)
+				p.msgCh <- QuitMsg{}
+
 			case msg := <-p.msgCh:
+				if msg == nil {
+					continue
+				}
+				newModel, cmd := p.m.Update(msg)
+				p.m = newModel
+				p.renderer.Render(p.m.View())
+				if cmd != nil {
+					go func(c Cmd) { p.msgCh <- c() }(cmd)
+				}
 				if _, ok := msg.(QuitMsg); ok {
 					break loop
-				}
-				var next Cmd
-				p.m, next = p.m.Update(msg)
-				p.renderer.Render(p.m.View())
-				if next != nil {
-					go func(c Cmd) { p.msgCh <- c() }(next)
 				}
 			}
 		}
 
-		// Shutdown
+
+		// 
+		// p.stopOnce.Do(func() {
+		// 	p.cancel()
+		// 	p.wg.Wait()
+		// 	p.renderer.Close()
+		// })
 		p.stopOnce.Do(func() {
 			p.cancel()
-			p.wg.Wait()
 			p.renderer.Close()
+			p.input.restore()
+
+			done := make(chan struct {})
+			go func() { p.wg.Wait(); close(done) }()
+			select {
+			case <- done:
+			case <-time.After(200 * time.Millisecond):
+			}
 		})
 	})
 	return runErr
@@ -225,7 +265,6 @@ func (p *Session) Send(msg Msg) {
 	select {
 	case p.msgCh <- msg:
 	default:
-		// drop if full; configurable via WithMsgBuffer
 	}
 }
 
@@ -246,7 +285,6 @@ func (p *Session) watchSize(ctx context.Context, out chan<- Msg) {
 		lastW, lastH = w, h
 		out <- ResizeMsg{Width: w, Height: h}
 	}
-
 	ticker := time.NewTicker(p.resizeInterval)
 	defer ticker.Stop()
 	for {

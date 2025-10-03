@@ -5,7 +5,8 @@ import "time"
 // Msg is any message delivered to Update.
 type Msg interface{}
 
-// KeyType classifies the kind of key pressed.
+// ---------- Keys ----------
+
 type KeyType int
 
 const (
@@ -29,22 +30,57 @@ const (
 	KeyQ
 )
 
-// KeyMsg represents keyboard input in a normalized way.
 type KeyMsg struct {
 	Type   KeyType
-	Rune   rune   // valid if Type == KeyRune
-	String string // raw escape/control sequence (e.g., "\x1b[A", "\r")
-	Alt    bool   // Alt (Meta) modifier
-	Ctrl   bool   // Ctrl modifier (best-effort for some keys)
+	Rune   rune
+	String string
+	Alt    bool
+	Ctrl   bool
 }
 
-// TickMsg is emitted by Tick() after a duration.
+// ---------- Time / Quit / Resize ----------
+
 type TickMsg struct{ At time.Time }
 
-// QuitMsg requests graceful termination.
 type QuitMsg struct{}
 
-// ResizeMsg notifies terminal size changes (cols x rows).
 type ResizeMsg struct {
 	Width, Height int
+}
+
+// ---------- Bracketed Paste ----------
+
+type PasteMsg struct {
+	Text string
+}
+
+// ---------- Mouse (SGR) ----------
+
+type MouseButton int
+
+const (
+	MouseUnknown MouseButton = iota
+	MouseLeft
+	MouseMiddle
+	MouseRight
+	MouseWheelUp
+	MouseWheelDown
+)
+
+type MouseAction int
+
+const (
+	MousePress MouseAction = iota
+	MouseRelease
+	MouseDrag
+	MouseWheel
+)
+
+type MouseMsg struct {
+	Button MouseButton
+	Action MouseAction
+	X, Y   int // 1-based terminal coords
+	Alt    bool
+	Ctrl   bool
+	Shift  bool
 }

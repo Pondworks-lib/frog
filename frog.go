@@ -23,6 +23,12 @@ type (
 	Cmd       = core.Cmd
 	ResizeMsg = core.ResizeMsg
 
+	// Mouse & Paste
+	MouseMsg    = core.MouseMsg
+	MouseButton = core.MouseButton
+	MouseAction = core.MouseAction
+	PasteMsg    = core.PasteMsg
+
 	// Styling
 	Style        = core.Style
 	Color        = core.Color
@@ -59,6 +65,23 @@ const (
 	KeyPgUp      = core.KeyPgUp
 	KeyPgDn      = core.KeyPgDn
 	KeyQ         = core.KeyQ
+)
+
+// Mouse constants
+const (
+	MouseUnknown   = core.MouseUnknown
+	MouseLeft      = core.MouseLeft
+	MouseMiddle    = core.MouseMiddle
+	MouseRight     = core.MouseRight
+	MouseWheelUp   = core.MouseWheelUp
+	MouseWheelDown = core.MouseWheelDown
+)
+
+const (
+	MousePress = core.MousePress
+	MouseRelease = core.MouseRelease
+	MouseDrag = core.MouseDrag
+	MouseWheel = core.MouseWheel
 )
 
 // Color profile constants
@@ -113,23 +136,26 @@ func RunContext(ctx context.Context, m Model, opts ...Option) error {
 
 // Session options
 var (
-	Tick              = core.Tick
-	Quit              = core.Quit
-	Nil               = core.Nil
-	WithRenderer      = core.WithRenderer
-	WithAltScreen     = core.WithAltScreen
-	WithMsgBuffer     = core.WithMsgBuffer
-	WithOut           = core.WithOut
-	WithIn            = core.WithIn
-	WithResizeInterval= core.WithResizeInterval
-	WithNonInteractive= core.WithNonInteractive
-	WithLogger        = core.WithLogger
+	Tick               = core.Tick
+	Quit               = core.Quit
+	Nil                = core.Nil
+	WithRenderer       = core.WithRenderer
+	WithAltScreen      = core.WithAltScreen
+	WithMsgBuffer      = core.WithMsgBuffer
+	WithOut            = core.WithOut
+	WithIn             = core.WithIn
+	WithResizeInterval = core.WithResizeInterval
+	WithNonInteractive = core.WithNonInteractive
+	WithLogger         = core.WithLogger
+	WithMouse          = core.WithMouse
+	WithBracketedPaste = core.WithBracketedPaste
 )
 
 // Renderer power-user API
 func NewRenderer(out io.Writer, opts ...RendererOption) core.Renderer {
 	return core.NewRenderer(out, opts...)
 }
+
 var (
 	WithDiff         = core.WithDiff
 	WithColorProfile = core.WithColorProfile
