@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/pondworks-lib/frog/core"
+	"github.com/pondworks-lib/frog/core/validate"
 )
 
 type (
@@ -124,13 +125,21 @@ var (
 
 // App helpers
 func NewApp(m Model, opts ...Option) *App { return core.NewSession(m, opts...) }
-func Run(m Model, opts ...Option) error   { return core.NewSession(m, opts...).Run() }
+func Run(m Model, opts ...Option) error {
+	if err := validate.ValidateModel(m); err != nil {
+		return err
+	}
+	return core.NewSession(m, opts...).Run()
+}
 
 // Context-aware entrypoints
 func NewAppWithContext(ctx context.Context, m Model, opts ...Option) *App {
 	return core.NewSessionWithContext(ctx, m, opts...)
 }
 func RunContext(ctx context.Context, m Model, opts ...Option) error {
+		if err := validate.ValidateModel(m); err != nil {
+		return err
+	}
 	return core.NewSessionWithContext(ctx, m, opts...).Run()
 }
 

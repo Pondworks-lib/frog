@@ -139,6 +139,7 @@ func (p *Session) Run() (runErr error) {
 				runErr = fmt.Errorf("panic: %v", r)
 			}
 		}()
+		
 
 		// Determine interactive/tty
 		isTTY := func(w io.Writer) bool {
